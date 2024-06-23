@@ -1,0 +1,154 @@
+
+REPORT zgs_fia22001_99_project.
+
+* Datenbankstrukturen
+TABLES: zgs_01_zuser, zgs_01_zactivity.
+
+* Selektionsbildschirm für Benutzereingabe
+PARAMETERS: p_name TYPE zgs_01_zuser-name,
+            p_age TYPE zgs_01_zuser-age,
+            p_gender TYPE zgs_01_zuser-gender.
+
+* Selektionsbildschirm für Aktivitätseingabe
+PARAMETERS: p_userid TYPE zgs_01_zactivity-userid,
+            p_date TYPE zgs_01_zactivity-activitydate,
+            p_steps TYPE zgs_01_zactivity-steps,
+            p_calbnd TYPE zgs_01_zactivity-caloriesburned,
+            p_dist TYPE zgs_01_zactivity-distance.
+
+* Auswahlparameter zur Auswahl des Modus (Benutzer- oder Aktivitätseingabe)
+PARAMETERS: p_mode TYPE c LENGTH 1 DEFAULT 'U'.
+
+START-OF-SELECTION.
+  CASE p_mode.
+    WHEN 'U'.
+      PERFORM create_user.
+    WHEN 'A'.
+      PERFORM create_activity.
+    WHEN OTHERS.
+      WRITE: / 'Ungültiger Modus. Bitte "U" für Benutzer oder "A" für Aktivität eingeben.'.
+  ENDCASE.
+
+FORM create_user.
+  DATA: lv_userid TYPE zgs_01_zuser-userid.
+  CALL FUNCTION 'ZGS_FIA22001_CREATE_USER'
+    EXPORTING
+      name   = p_name
+      age    = p_age
+      gender = p_gender
+    IMPORTING
+      userid = lv_userid.
+  IF sy-subrc = 0.
+    WRITE: / 'User created with ID:', lv_userid.
+  ELSE.
+    WRITE: / 'Error creating user.'.
+  ENDIF.
+ENDFORM.
+
+FORM create_activity.
+  DATA: lv_activityid TYPE zgs_01_zactivity-activityid.
+  CALL FUNCTION 'ZGS_FIA22001_CREATE_ACTIVITY'
+    EXPORTING
+      userid         = p_userid
+      ACTIVITYDATE           = p_date
+      steps          = p_steps
+      caloriesburned = p_calbnd
+      distance       = p_dist
+    IMPORTING
+      activityid     = lv_activityid.
+  IF sy-subrc = 0.
+    WRITE: / 'Activity created with ID:', lv_activityid.
+  ELSE.
+    WRITE: / 'Error creating activity.'.
+  ENDIF.
+ENDFORM. 
+
+
+-------------------------
+
+
+FUNCTION ZGS_FIA22001_CREATE_USER.
+*"----------------------------------------------------------------------
+*"*"Lokale Schnittstelle:
+*"  IMPORTING
+*"     REFERENCE(NAME) TYPE  C
+*"     REFERENCE(AGE) TYPE  I
+*"     REFERENCE(GENDER) TYPE  C
+*"  EXPORTING
+*"     REFERENCE(USERID) TYPE  INT4
+*"----------------------------------------------------------------------
+
+  DATA: lv_userid TYPE zgs_01_zuser-userid,
+        lv_max_userid TYPE zgs_01_zuser-userid.
+
+  SELECT MAX( userid ) INTO lv_max_userid FROM zgs_01_zuser.
+
+  lv_userid = lv_max_userid + 1.
+
+  IF lv_max_userid IS INITIAL.
+    lv_userid = 1.
+  ENDIF.
+  USERID = lv_userid.
+  " Insert into zgs_01_zuser using structured data
+  DATA(lv_struct) = VALUE zgs_01_zuser(
+    userid = lv_userid
+    name = NAME
+    age = AGE
+    gender = GENDER
+  ).
+
+  INSERT zgs_01_zuser FROM lv_struct.
+
+  IF sy-subrc = 0.
+    WRITE : / 'User successfully created.'.
+  ELSE.
+    MESSAGE 'Error creating user' TYPE 'E'.
+  ENDIF.
+ENDFUNCTION.
+
+
+---------------------
+
+
+FUNCTION ZGS_FIA22001_CREATE_ACTIVITY.
+*"----------------------------------------------------------------------
+*"*"Lokale Schnittstelle:
+*"  IMPORTING
+*"     REFERENCE(USERID) TYPE  INT4
+*"     REFERENCE(ACTIVITYDATE) TYPE  DATS
+*"     REFERENCE(STEPS) TYPE  INT4
+*"     REFERENCE(CALORIESBURNED) TYPE  INT4
+*"     REFERENCE(DISTANCE) TYPE  INT4
+*"  EXPORTING
+*"     REFERENCE(ACTIVITYID) TYPE  INT4
+*"----------------------------------------------------------------------
+  DATA: lv_activityid TYPE zgs_01_zactivity-activityid,
+        lv_struct TYPE zgs_01_zactivity.
+
+  SELECT MAX( activityid ) INTO lv_activityid FROM zgs_01_zactivity.
+
+  lv_activityid = lv_activityid + 1.
+
+  IF lv_activityid IS INITIAL.
+    lv_activityid = '0000000001'. " Initialize to 1 if no activities exist yet
+  ENDIF.
+
+  ACTIVITYID = lv_activityid.
+
+  " Populate structured data
+  lv_struct = VALUE #( activityid = ACTIVITYID
+                       userid = USERID
+                       ACTIVITYDATE = ACTIVITYDATE
+                       steps = STEPS
+                       caloriesburned = CALORIESBURNED
+                       distance = DISTANCE ).
+
+  " Insert into zgs_01_zactivity table
+  INSERT zgs_01_zactivity FROM lv_struct.
+
+  IF sy-subrc = 0.
+    WRITE : / 'Activity successfully created.'.
+  ELSE.
+    MESSAGE 'Error creating activity' TYPE 'E'.
+  ENDIF.
+ENDFUNCTION.
